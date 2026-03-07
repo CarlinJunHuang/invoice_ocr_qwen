@@ -1,0 +1,73 @@
+project:
+  name: invoice_ocr_qwen
+
+paths:
+  output_root: ./output
+  hf_home: ../runtime/hf-cache
+  torch_home: ../runtime/torch-cache
+  logs_root: ../runtime/logs
+
+ocr:
+  languages:
+    - en
+  gpu: true
+  min_confidence: 0.20
+
+overlay:
+  enabled: true
+  line_width: 3
+  font_size: 18
+
+grounding:
+  fuzzy_threshold: 82
+
+benchmark:
+  resource_poll_seconds: 0.25
+
+modes:
+  ocr_rules:
+    kind: rules
+
+  qwen3_vl_bf16:
+    kind: qwen_vl
+    model_id: Qwen/Qwen3-VL-4B-Instruct
+    precision: bf16
+    device: cuda
+    min_pixels: 524288
+    max_pixels: 1048576
+    max_new_tokens: 900
+    temperature: 0.0
+    attn_implementation: flash_attention_2
+
+  qwen3_vl_4bit:
+    kind: qwen_vl
+    model_id: Qwen/Qwen3-VL-4B-Instruct
+    precision: 4bit
+    device: cuda
+    min_pixels: 524288
+    max_pixels: 1048576
+    max_new_tokens: 900
+    temperature: 0.0
+    attn_implementation: flash_attention_2
+
+  qwen3_5_bf16:
+    kind: qwen_text
+    model_id: Qwen/Qwen3.5-4B
+    precision: bf16
+    device: cuda
+    max_new_tokens: 900
+    temperature: 0.0
+    attn_implementation: flash_attention_2
+    chat_template_kwargs:
+      enable_thinking: false
+
+  qwen3_5_4bit:
+    kind: qwen_text
+    model_id: Qwen/Qwen3.5-4B
+    precision: 4bit
+    device: cuda
+    max_new_tokens: 900
+    temperature: 0.0
+    attn_implementation: flash_attention_2
+    chat_template_kwargs:
+      enable_thinking: false

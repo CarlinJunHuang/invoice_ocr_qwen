@@ -1,0 +1,14 @@
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+src/*.egg-info/
+
+output/
+
+input/invoices/*
+!input/invoices/.gitkeep
+
+*.log

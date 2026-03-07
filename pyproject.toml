@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "invoice-ocr-qwen"
+version = "0.1.0"
+description = "Local invoice extraction benchmark for Qwen-based document extraction"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "easyocr>=1.7.2",
+  "json-repair>=0.58.4",
+  "opencv-python-headless>=4.10.0.84",
+  "pillow>=10.4.0",
+  "psutil>=6.0.0",
+  "pydantic>=2.8.2,<3.0.0",
+  "PyYAML>=6.0.2",
+  "qwen-vl-utils>=0.0.8",
+  "rapidfuzz>=3.9.6",
+  "transformers>=4.57.0",
+  "accelerate>=0.34.2"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.2"
+]
+quant = [
+  "bitsandbytes>=0.45.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
