@@ -1,0 +1,51 @@
+Extract invoice fields directly from this page image.
+Use only information that is visibly supported by the page.
+Return JSON only. Do not use markdown fences. Do not add explanations.
+
+Return exactly one JSON object with these keys and no others:
+{
+  "seller_name": {"value": null, "bbox_2d": null},
+  "buyer_name": {"value": null, "bbox_2d": null},
+  "invoice_number": {"value": null, "bbox_2d": null},
+  "invoice_date": {"value": null, "bbox_2d": null},
+  "due_date": {"value": null, "bbox_2d": null},
+  "payment_terms": {"value": null, "bbox_2d": null},
+  "currency": {"value": null, "bbox_2d": null},
+  "gross_amount": {"value": null, "bbox_2d": null},
+  "tax_amount": {"value": null, "bbox_2d": null},
+  "net_amount": {"value": null, "bbox_2d": null},
+  "total_amount": {"value": null, "bbox_2d": null},
+  "outstanding_balance": {"value": null, "bbox_2d": null},
+  "account_name": {"value": null, "bbox_2d": null},
+  "bank_name": {"value": null, "bbox_2d": null},
+  "account_number": {"value": null, "bbox_2d": null},
+  "swift_code": {"value": null, "bbox_2d": null}
+}
+
+Field rules:
+- seller_name: issuer, supplier, or vendor legal entity. Do not return the buyer, a contact person, an address, a bank label, or a footer sign-off.
+- buyer_name: billed customer legal entity. Do not return an attention line, contact person, or payment recipient.
+- invoice_number: main invoice identifier near labels such as Invoice No, Invoice Number, Bill No, or No.
+- invoice_date: invoice issue date.
+- due_date: only return an explicit due date written on the page. If only payment terms are shown and the due date is not written, return null.
+- payment_terms: short payment term text such as CASH, COD, NET 14, NET 30, or the visible phrase that clearly states the payment term rule.
+- currency: return a currency code or symbol only. Never return a company name, address, invoice title, or person name as currency. Normalize Singapore dollars or S$ to SGD when clearly supported.
+- gross_amount: subtotal or pre-tax amount when explicit.
+- tax_amount: GST, VAT, or tax amount when explicit.
+- net_amount: net amount or amount before tax when explicit.
+- total_amount: final payable or grand total.
+- outstanding_balance: only if an outstanding amount or balance due is explicitly shown.
+- account_name, bank_name, account_number, swift_code: only when bank payment details are explicitly present.
+- account_number must be a bank account number, not an invoice number, customer number, or reference number.
+
+Selection rules:
+- Prefer the invoice header, seller block, buyer block, totals table, and payment or bank section.
+- Ignore footer text, remarks, signature areas, and terms-and-conditions unless the target field is clearly there.
+- If two candidates conflict, prefer the one whose text type matches the field. Use null instead of forcing a guess.
+- Return amount values as strings with two decimal places when possible.
+
+Bounding box rules:
+- bbox_2d must be [x1, y1, x2, y2].
+- bbox_2d must use integer coordinates normalized to 0-1000 relative to this page image.
+- Use the tightest box that supports the returned visible value.
+- If a field is missing or uncertain, use {"value": null, "bbox_2d": null}.

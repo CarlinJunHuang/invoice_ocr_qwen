@@ -1,0 +1,80 @@
+Extract structured invoice data directly from this page image.
+Use only information visibly supported by the page, or a direct inference from an explicit payment rule that appears on the page.
+Return JSON only. Do not use markdown fences. Do not add explanations.
+
+Return exactly one JSON object with this shape and no other top-level keys:
+{
+  "doc_type": "INVOICE",
+  "extracted": {
+    "seller_name": {"value": null, "bbox_2d": null},
+    "buyer_name": {"value": null, "bbox_2d": null},
+    "invoice_number": {"value": null, "bbox_2d": null},
+    "invoice_date": {"value": null, "bbox_2d": null},
+    "due_date": {"value": null, "bbox_2d": null},
+    "payment_terms": {"value": null, "bbox_2d": null},
+    "currency": {"value": null, "bbox_2d": null},
+    "line_items": [
+      {
+        "row_bbox_2d": null,
+        "description": {"value": null, "bbox_2d": null},
+        "quantity": {"value": null, "bbox_2d": null},
+        "unit_price": {"value": null, "bbox_2d": null},
+        "line_total": {"value": null, "bbox_2d": null}
+      }
+    ],
+    "gross_amount": {"value": null, "bbox_2d": null},
+    "tax_amount": {"value": null, "bbox_2d": null},
+    "total_amount": {"value": null, "bbox_2d": null},
+    "net_amount": {"value": null, "bbox_2d": null},
+    "outstanding_balance": {"value": null, "bbox_2d": null},
+    "bank_details": {
+      "account_name": {"value": null, "bbox_2d": null},
+      "bank_name": {"value": null, "bbox_2d": null},
+      "account_number": {"value": null, "bbox_2d": null},
+      "swift_code": {"value": null, "bbox_2d": null},
+      "bank_branch_code": {"value": null, "bbox_2d": null}
+    }
+  }
+}
+
+Rules:
+- doc_type must be exactly "INVOICE".
+- bbox_2d and row_bbox_2d must be [x1, y1, x2, y2] using integer coordinates normalized to 0-1000 relative to this page image.
+- Use a tight bbox around the visible text that best supports the value.
+- If a field is missing or uncertain, use {"value": null, "bbox_2d": null}.
+- Prefer null over guessing.
+- If there are no line items, return "line_items": [].
+
+Field rules:
+- seller_name: invoice issuer or supplier legal entity. Never return buyer, address, contact person, bank label, or footer sign-off.
+- buyer_name: billed customer legal entity. Never return attention line, payment recipient, or contact person.
+- invoice_number: main invoice identifier near labels such as Invoice No, Invoice Number, Bill No, or No. Reject table headers, references in notes, or customer numbers.
+- invoice_date: invoice issue date.
+- due_date: use an explicit due date if present. You may infer it only from an explicit payment rule such as "14 days from invoice date". If you infer it from a rule, use the rule text as bbox support, not the invoice_date bbox. Do not use service period dates, maintenance period dates, ship dates, or delivery dates as due_date.
+- payment_terms: keep only true payment terms such as CASH, COD, NET 14, NET 30, due on receipt, or an explicit payment rule. Do not use shipping terms, delivery terms, service periods, remarks, or narrative footer text as payment_terms.
+- currency: return only a currency code or symbol. If the page clearly indicates Singapore dollars, SGD, or S$, return "SGD". Never return a company name, date, amount, table header, or description as currency.
+- gross_amount: subtotal or pre-tax amount when explicit.
+- tax_amount: GST, VAT, or tax amount when explicit.
+- total_amount: final payable or grand total when explicit.
+- net_amount: subtotal, amount before GST, or net amount when explicit.
+- outstanding_balance: use only when the page explicitly shows outstanding, balance due, or open invoices. Do not copy total_amount unless the page clearly labels it as outstanding or balance due.
+- bank_details: populate only when payment account details are explicitly present in a payment or bank section.
+- bank_details usually appear near labels such as Account Name, Bank Name, Account Number, Swift Code, or Bank Branch Code. Inspect the lower payment section carefully before returning null.
+- bank_details.account_number must be a bank account number, not an invoice number, customer number, or branch code.
+
+Line item rules:
+- Extract rows from the main invoice items table only.
+- Ignore totals, tax summary rows, footer notes, open invoices sections, carried-forward text, and payment instructions.
+- description may include wrapped text from the same row.
+- quantity usually comes from Qty or Quantity.
+- unit_price usually comes from Unit Price, Price, Rate, or Unit Cost.
+- line_total usually comes from Amount, Total, Line Total, or Ext Price in the same row.
+- quantity, unit_price, and line_total must come from the same row as the description.
+- quantity must be a numeric quantity only.
+- unit_price and line_total must be numeric amount strings only. Never return a currency code, currency symbol by itself, date, or table header as unit_price or line_total.
+
+Decision policy:
+- Prefer invoice header, seller block, buyer block, amount summary, payment block, and the main items table over footer or notes.
+- If two candidates conflict, choose the candidate that is the right kind of thing for the field. If neither is reliable, use null.
+- Keep values close to the visible text. Do not paraphrase.
+- Return amount values as strings with two decimal places when possible.

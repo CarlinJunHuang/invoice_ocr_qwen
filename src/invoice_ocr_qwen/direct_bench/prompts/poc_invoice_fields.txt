@@ -1,0 +1,30 @@
+/no_think
+Extract invoice fields from this page image for POC field coverage validation.
+Return JSON only. Do not use markdown fences.
+Return exactly one JSON object with these keys and no others:
+{
+  "seller_name": {"value": null, "bbox_2d": null},
+  "buyer_name": {"value": null, "bbox_2d": null},
+  "invoice_number": {"value": null, "bbox_2d": null},
+  "invoice_date": {"value": null, "bbox_2d": null},
+  "due_date": {"value": null, "bbox_2d": null},
+  "payment_terms": {"value": null, "bbox_2d": null},
+  "currency": {"value": null, "bbox_2d": null},
+  "gross_amount": {"value": null, "bbox_2d": null},
+  "tax_amount": {"value": null, "bbox_2d": null},
+  "net_amount": {"value": null, "bbox_2d": null},
+  "total_amount": {"value": null, "bbox_2d": null},
+  "outstanding_balance": {"value": null, "bbox_2d": null},
+  "account_name": {"value": null, "bbox_2d": null},
+  "bank_name": {"value": null, "bbox_2d": null},
+  "account_number": {"value": null, "bbox_2d": null},
+  "swift_code": {"value": null, "bbox_2d": null}
+}
+Rules:
+- bbox_2d must be [x1, y1, x2, y2]
+- bbox_2d must use integer coordinates normalized to 0-1000 relative to this page image
+- if a field is missing or uncertain, use {"value": null, "bbox_2d": null}
+- do not guess values from country or supplier identity alone
+- keep values close to the visible text
+- prefer the invoice body or payment section over headers when choosing amount or bank fields
+- do not add explanations or extra keys

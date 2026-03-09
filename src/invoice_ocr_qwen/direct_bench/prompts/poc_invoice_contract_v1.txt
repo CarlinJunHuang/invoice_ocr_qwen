@@ -1,0 +1,61 @@
+Extract structured invoice data directly from this page image.
+Use only information visibly supported by the page.
+Return JSON only. Do not use markdown fences. Do not add explanations.
+
+Return exactly one JSON object with this shape and no other top-level keys:
+{
+  "doc_type": "INVOICE",
+  "extracted": {
+    "seller_name": {"value": null, "bbox_2d": null},
+    "buyer_name": {"value": null, "bbox_2d": null},
+    "invoice_number": {"value": null, "bbox_2d": null},
+    "invoice_date": {"value": null, "bbox_2d": null},
+    "due_date": {"value": null, "bbox_2d": null},
+    "payment_terms": {"value": null, "bbox_2d": null},
+    "currency": {"value": null, "bbox_2d": null},
+    "line_items": [
+      {
+        "row_bbox_2d": null,
+        "description": {"value": null, "bbox_2d": null},
+        "quantity": {"value": null, "bbox_2d": null},
+        "unit_price": {"value": null, "bbox_2d": null},
+        "line_total": {"value": null, "bbox_2d": null}
+      }
+    ],
+    "gross_amount": {"value": null, "bbox_2d": null},
+    "tax_amount": {"value": null, "bbox_2d": null},
+    "total_amount": {"value": null, "bbox_2d": null},
+    "net_amount": {"value": null, "bbox_2d": null},
+    "outstanding_balance": {"value": null, "bbox_2d": null},
+    "bank_details": {
+      "account_name": {"value": null, "bbox_2d": null},
+      "bank_name": {"value": null, "bbox_2d": null},
+      "account_number": {"value": null, "bbox_2d": null},
+      "swift_code": {"value": null, "bbox_2d": null},
+      "bank_branch_code": {"value": null, "bbox_2d": null}
+    }
+  }
+}
+
+Rules:
+- doc_type must be exactly "INVOICE".
+- bbox_2d and row_bbox_2d must be [x1, y1, x2, y2] using integer coordinates normalized to 0-1000 relative to this page image.
+- If a field is missing or uncertain, use {"value": null, "bbox_2d": null}.
+- If there are no line items, return "line_items": [].
+- seller_name: invoice issuer or supplier legal entity. Never return buyer, address, contact person, bank label, or footer sign-off.
+- buyer_name: billed customer legal entity. Never return attention line, payment recipient, or contact person.
+- invoice_number: main invoice identifier near Invoice No, Invoice Number, Bill No, or No.
+- invoice_date: invoice issue date.
+- due_date: explicit due date preferred. If the document clearly states a rule like "14 days from invoice date", you may infer due_date from invoice_date.
+- payment_terms: keep the visible payment term phrase or rule.
+- currency: return a currency code or symbol only. Normalize Singapore dollars or S$ to SGD when clearly supported.
+- line_items: extract only rows from the main invoice items table. Ignore totals, open invoices sections, and footer notes.
+- gross_amount: subtotal or pre-tax amount when explicit.
+- tax_amount: GST, VAT, or tax amount when explicit.
+- total_amount: final payable or grand total.
+- net_amount: subtotal, amount before GST, or net amount when explicit.
+- outstanding_balance: only if the document explicitly shows outstanding or balance due.
+- bank_details: only populate when payment account details are explicitly present.
+- bank_details.account_number must be a bank account number, not an invoice number, customer number, or reference number.
+- Prefer invoice header, buyer block, seller block, amount summary, payment block, and main items table over footer and notes.
+- Return amount values as strings with two decimal places when possible.

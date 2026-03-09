@@ -1,0 +1,16 @@
+/no_think
+Extract only these invoice fields from this page image.
+Return JSON only. Do not use markdown fences.
+Return exactly one JSON object with these keys and no others:
+{
+  "invoice_number": {"value": null, "bbox_2d": null},
+  "invoice_date": {"value": null, "bbox_2d": null},
+  "tax_amount": {"value": null, "bbox_2d": null},
+  "total_amount": {"value": null, "bbox_2d": null}
+}
+Rules:
+- bbox_2d must be [x1, y1, x2, y2]
+- bbox_2d must use integer coordinates normalized to 0-1000 relative to this page image
+- if uncertain, use {"value": null, "bbox_2d": null}
+- keep values close to the visible text
+- do not add explanations or extra keys

@@ -1,0 +1,73 @@
+Extract structured invoice data directly from this page image.
+Return JSON only. No markdown. No explanations.
+
+Return exactly one JSON object with this shape:
+{
+  "doc_type": "INVOICE",
+  "extracted": {
+    "seller_name": {"value": null, "bbox_2d": null},
+    "buyer_name": {"value": null, "bbox_2d": null},
+    "invoice_number": {"value": null, "bbox_2d": null},
+    "invoice_date": {"value": null, "bbox_2d": null},
+    "due_date": {"value": null, "bbox_2d": null},
+    "payment_terms": {"value": null, "bbox_2d": null},
+    "currency": {"value": null, "bbox_2d": null},
+    "line_items": [
+      {
+        "row_bbox_2d": null,
+        "description": {"value": null, "bbox_2d": null},
+        "quantity": {"value": null, "bbox_2d": null},
+        "unit_price": {"value": null, "bbox_2d": null},
+        "line_total": {"value": null, "bbox_2d": null}
+      }
+    ],
+    "gross_amount": {"value": null, "bbox_2d": null},
+    "tax_amount": {"value": null, "bbox_2d": null},
+    "total_amount": {"value": null, "bbox_2d": null},
+    "net_amount": {"value": null, "bbox_2d": null},
+    "outstanding_balance": {"value": null, "bbox_2d": null},
+    "bank_details": {
+      "account_name": {"value": null, "bbox_2d": null},
+      "bank_name": {"value": null, "bbox_2d": null},
+      "account_number": {"value": null, "bbox_2d": null},
+      "swift_code": {"value": null, "bbox_2d": null},
+      "bank_branch_code": {"value": null, "bbox_2d": null}
+    }
+  }
+}
+
+Rules:
+- doc_type must be "INVOICE".
+- bbox_2d and row_bbox_2d must be [x1, y1, x2, y2] with integer coordinates normalized to 0-1000.
+- Use tight boxes around the visible supporting text.
+- If uncertain, return null. Prefer null over guessing.
+- If there are no line items, return "line_items": [].
+
+Field rules:
+- seller_name: supplier / issuer legal entity.
+- buyer_name: billed customer legal entity.
+- invoice_number: main invoice identifier near Invoice No / Invoice Number / Bill No / No.
+- invoice_date: issue date.
+- due_date: explicit due date preferred. Infer only from an explicit rule like "14 days from invoice date". Do not use service period dates, maintenance period dates, ship dates, or delivery dates as due_date.
+- payment_terms: only actual payment terms such as CASH, COD, NET 14, NET 30, due on receipt, or an explicit payment rule. Do not use shipping terms, delivery terms, service periods, or footer remarks.
+- currency: return only a currency code or symbol. If Singapore dollars / SGD / S$ is clear, return "SGD".
+- gross_amount: subtotal or pre-tax amount when explicit.
+- tax_amount: GST / VAT / tax amount when explicit.
+- total_amount: final payable or grand total when explicit.
+- net_amount: subtotal / amount before GST / net amount when explicit.
+- outstanding_balance: only when the page explicitly shows outstanding / balance due / open invoices. Do not copy total_amount unless clearly labelled that way.
+- bank_details: inspect the payment section carefully. Populate only when account details are explicitly present near labels such as Account Name, Bank Name, Account Number, Swift Code, or Bank Branch Code.
+- bank_details.account_number must be a bank account number, not an invoice number, customer number, or branch code.
+
+Line item rules:
+- Extract rows from the main invoice items table only.
+- Ignore totals, tax summary rows, open invoices sections, footer notes, and payment instructions.
+- description may include wrapped text from the same row.
+- quantity, unit_price, and line_total must come from the same row as the description.
+- quantity must be numeric only.
+- unit_price and line_total must be numeric amount strings only, not a currency label, date, or header.
+
+Decision policy:
+- Prefer invoice header, seller block, buyer block, amount summary, payment block, and the main items table over footer or notes.
+- Keep values close to the visible text.
+- Return amount values as strings with two decimal places when possible.
