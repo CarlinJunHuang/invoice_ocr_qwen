@@ -1,215 +1,195 @@
 # Invoice OCR Qwen
 
-本仓库用于本地跑发票/票据类图片抽取实验，重点是把文档理解、结构化抽取、evidence 保留和 overlay 产物串成一条可复用的实验链路。
+[中文说明](README.zh-CN.md)
 
-当前实现只依赖本地推理，不调用云 API，适合先在个人机器上比较不同模式，再决定后续如何并回主项目。
+This repository now contains two parallel experiment tracks for invoice extraction:
 
-## 当前保留的模式
+- `ocr-first`: OCR -> structured extraction -> evidence grounding -> overlay
+- `direct-vlm`: single vision model -> fields + bbox JSON -> overlay
 
-- `qwen3_vl_bf16`
-- `qwen3_vl_4bit`
-- `qwen3_5_bf16`
-- `qwen3_5_4bit`
-- `ocr_rules`，可选保底基线
+The `direct-vlm` track is a sanitized public port of the recent direct bench work. It keeps the public code, prompt profiles, and output contract, but does not include any private sample artifacts or local-only paths.
 
-说明：
+## Tracks
 
-- `Qwen3-VL` 走图片 + OCR 的文档理解路径
-- `Qwen3.5` 走 OCR 文本抽取路径，便于和视觉路线做对比
-- `4bit` 主要用于压显存，不保证比 `bf16` 更快
-- `ocr_rules` 不是主方向，只用于快速检查 OCR、evidence grounding、overlay 这条链是否正常
+### 1. OCR-first pipeline
 
-## 输入和输出
+This is the original pipeline already present in the repo.
 
-输入图片目录：
+- Qwen-VL can consume page images after OCR
+- Qwen 3.5 can consume OCR text
+- evidence is grounded back to OCR lines
+- final artifacts include `envelope.json`, `grounded_evidence.json`, and overlay images
 
-- `.\input\invoices\`
+Main commands:
 
-支持格式：
-
-- `.png`
-- `.jpg`
-- `.jpeg`
-
-单次运行输出目录：
-
-- `.\output\<run_name>\<mode>\`
-
-重点产物：
-
-- `envelope.json`
-- `parsed_model_output.json`
-- `raw_model_output.txt`
-- `grounded_evidence.json`
-- `page_01_overlay.png`
-- `run_summary.json`
-
-如果是 benchmark，还会额外生成：
-
-- `benchmark_summary.json`
-
-## 目录结构
-
-```text
-invoice_ocr_qwen/
-├─ configs/
-├─ input/
-│  └─ invoices/
-├─ output/
-├─ scripts/
-└─ src/
+```powershell
+.\scripts\run_extract.ps1 -Mode qwen3_vl_bf16 -InputImages .\input\invoices\page1.png
+.\scripts\run_benchmark.ps1 -Modes qwen3_vl_bf16,qwen3_5_bf16 -InputImages .\input\invoices\page1.png
 ```
 
-## 环境说明
+### 2. Direct VLM bench
 
-本仓库默认把虚拟环境、模型缓存和 Torch 缓存写到仓库同级目录的 `..\runtime\`，目的是：
+This is the newer single-model path.
 
-- 不把大模型缓存写进仓库
-- 不把缓存写到系统默认目录
-- 让同一工作区下的其他实验目录也能复用同一个运行时
+- send one image or PDF directly to one multimodal model
+- ask the model to return invoice fields and bounding boxes in one JSON payload
+- normalize the result locally
+- render overlays from returned boxes
+- write one envelope-like output plus one bbox-rich debug output
 
-默认位置：
+This path intentionally does not do evidence mapping. It is meant for quick evaluation of smaller local or API models before deeper integration.
 
-- 虚拟环境：`..\runtime\.venv311`
-- Hugging Face 缓存：`..\runtime\hf-cache`
-- Torch 缓存：`..\runtime\torch-cache`
+Main Python entry points:
 
-## 安装
+- `python -m invoice_ocr_qwen.direct_bench`
+- `python -m invoice_ocr_qwen.direct_bench.dataset`
 
-在仓库根目录执行：
+PowerShell wrappers:
+
+- `.\scripts\run_direct_extract.ps1`
+- `.\scripts\run_direct_dataset.ps1`
+
+## Prompt profiles
+
+Prompt files live under `src/invoice_ocr_qwen/direct_bench/prompts/`.
+
+- `core_fields.txt`
+  - minimal smoke prompt
+- `poc_invoice_fields.txt`
+  - broader field-first prompt
+- `poc_invoice_fields_v2.txt`
+  - refined field prompt
+- `poc_invoice_contract_v1.txt`
+  - baseline direct contract
+- `poc_invoice_contract_v2.txt`
+  - stricter null-over-guess version
+- `poc_invoice_contract_v3.txt`
+  - current refined prompt
+  - default for the direct bench in this repository
+
+You can think of `v1` as the baseline public port and `v3` as the improved prompt profile.
+
+## Install
+
+From the repository root:
 
 ```powershell
 .\scripts\bootstrap.ps1
 ```
 
-这个脚本会：
+The runtime is kept outside this repository under `..\runtime\` so model caches and virtualenvs do not pollute the repo.
 
-- 创建 `..\runtime\.venv311`
-- 安装 CUDA 版 PyTorch
-- 安装项目依赖
-- 尝试安装 `bitsandbytes`
+## Direct VLM examples
 
-## 如何准备图片
-
-把待测图片放到：
-
-- `.\input\invoices\`
-
-建议命名方式：
-
-- `invoice_a_page1.png`
-- `invoice_a_page2.png`
-- `invoice_b_page1.jpg`
-
-多页文档直接按页顺序传入即可。
-
-## 如何运行
-
-### 1. 单跑 Qwen3-VL BF16
+Local Ollama:
 
 ```powershell
-.\scripts\run_extract.ps1 `
-  -Mode qwen3_vl_bf16 `
-  -InputImages .\input\invoices\page1.png
+.\scripts\run_direct_extract.ps1 `
+  -Backend ollama `
+  -Model qwen3-vl:4b-instruct-q8_0 `
+  -InputFile .\input\invoices\invoice_a.png `
+  -RunName direct-q3vl-4b
 ```
 
-### 2. 单跑 Qwen3-VL 4bit
+OpenAI-compatible API:
 
 ```powershell
-.\scripts\run_extract.ps1 `
-  -Mode qwen3_vl_4bit `
-  -InputImages .\input\invoices\page1.png
+$env:QWEN_API_BASE_URL = "https://your-endpoint.example/v1"
+$env:QWEN_API_KEY = "YOUR_API_KEY"
+
+.\scripts\run_direct_extract.ps1 `
+  -Backend openai-compatible `
+  -Model qwen3.5-flash `
+  -InputFile .\input\invoices\invoice_a.png `
+  -RunName direct-q35f-api
 ```
 
-### 3. 单跑 Qwen3.5 BF16
+Batch comparison:
 
 ```powershell
-.\scripts\run_extract.ps1 `
-  -Mode qwen3_5_bf16 `
-  -InputImages .\input\invoices\page1.png
+.\scripts\run_direct_dataset.ps1 `
+  -Backend ollama `
+  -RunPrefix direct-batch-v3 `
+  -Models qwen3-vl:2b-instruct-q8_0,qwen3-vl:4b-instruct-q8_0 `
+  -InputFiles .\input\invoices\invoice_a.png,.\input\invoices\invoice_b.png
 ```
 
-### 4. 单跑 Qwen3.5 4bit
+## Direct VLM parameters
 
-```powershell
-.\scripts\run_extract.ps1 `
-  -Mode qwen3_5_4bit `
-  -InputImages .\input\invoices\page1.png
-```
+The direct bench supports these practical parameters:
 
-### 5. 同一批图片做模式对比
+- `--backend`: `ollama` or `openai-compatible`
+- `--model`: model id
+- `--prompt-file`: prompt profile file, defaulting to `poc_invoice_contract_v3.txt`
+- `--temperature`: default `0.0`
+- `--max-tokens`: default `2400` for one-off runs, `3072` in the dataset runner
+- `--timeout-sec`
+- `--dpi`
+- `--max-pages`
+- `--max-long-side`
+- `--max-pixels`
+- `--jpeg-quality`
+- `--allow-thinking-fallback`: only for local models that leave `content` empty and put the answer in `thinking`
 
-```powershell
-.\scripts\run_benchmark.ps1 `
-  -Modes qwen3_vl_bf16,qwen3_vl_4bit,qwen3_5_bf16,qwen3_5_4bit `
-  -InputImages .\input\invoices\page1.png
-```
+## Outputs
 
-### 6. 多页图片
+OCR-first outputs are written under:
 
-```powershell
-.\scripts\run_extract.ps1 `
-  -Mode qwen3_vl_bf16 `
-  -InputImages .\input\invoices\page1.png,.\input\invoices\page2.png
-```
+- `output/<run_name>/<mode>/`
 
-### 7. 直接走 Python 入口
+Direct VLM outputs are written under:
 
-```powershell
-..\runtime\.venv311\Scripts\python.exe -m invoice_ocr_qwen.cli extract `
-  --config .\configs\default.yaml `
-  --mode qwen3_vl_bf16 `
-  --input .\input\invoices\page1.png
-```
+- `output/direct/<run_name>/`
 
-## 推荐顺序
+Direct run artifacts:
 
-如果是 RTX 4070 12GB / 32GB RAM，建议先这样跑：
+- `prompt.txt`
+- `page_raw_outputs.json`
+- `page_model_metadata.json`
+- `parsed_output.json`
+- `envelope.json`
+- `run_summary.json`
+- `page_XX_overlay.png`
+- `page_XX_line_items_overlay.png`
 
-1. `qwen3_vl_bf16`
-2. `qwen3_5_bf16`
-3. 再补 `qwen3_vl_4bit`
-4. 最后补 `qwen3_5_4bit`
+Direct batch artifacts:
 
-如果只是先看整条链有没有跑通，可以先跑：
+- `dataset-summary.tsv`
+- `dataset-summary.jsonl`
+- `dataset-aggregate.tsv`
 
-```powershell
-.\scripts\run_extract.ps1 `
-  -Mode ocr_rules `
-  -InputImages .\input\invoices\page1.png
-```
+## Output contract for the direct bench
 
-## 为什么会慢
+The direct bench returns an envelope-like structure with:
 
-本地文档抽取慢，主要不是因为“thinking”，而是下面几件事：
+- `request_id`
+- `schema_version`
+- `doc_type`
+- `extracted`
+- `clauses`
+- `eligibility`
+- `warnings`
+- `errors`
 
-- 首次运行需要下载模型
-- `Qwen3-VL` 处理整页图片时，视觉 token 开销本来就高
-- `4bit` 主要省显存，不一定省时间
-- `Qwen3.5` 路线虽然不看图，但仍然要先做 OCR，再跑结构化抽取
+Important difference from the OCR-first pipeline:
 
-当前默认已经做了两件比较保守的加速处理：
+- `evidence` is intentionally left empty in the direct bench
+- bbox-rich debugging data is stored in `parsed_output.json`
 
-- `Qwen3-VL` 视觉输入做了温和的像素上限控制，避免整页图片分辨率过高
-- `Qwen3.5` 默认走确定性输出，尽量减少跑偏成大段自然语言的情况
+## Dependencies added for the direct bench
 
-如果发现小字丢失，可以把 `configs/default.yaml` 里的 `qwen3_vl_*` `max_pixels` 调高。
+The direct bench adds a few runtime dependencies:
 
-## 当前实现思路
+- `numpy`
+- `requests`
+- `pypdfium2`
 
-整体流程保持和主项目方向一致：
+They are used only for page rendering, API calls, and bbox handling in the direct path.
 
-1. 先做 OCR
-2. 再做结构化抽取
-3. 再把 evidence 回挂到 OCR 行框
-4. 最后输出 envelope 和 overlay
+## Privacy note
 
-这意味着：
+This repository only contains portable code, prompts, scripts, and docs.
 
-- 即便某条模型路径拿不到原生 bbox，也仍然可以先保留 explainable evidence
-- 后续要并回稳定 envelope / highlight 流程时，迁移成本会更低
-
-## 参考
-
-- [Qwen3-VL OCR Cookbook](https://github.com/QwenLM/Qwen3-VL/blob/main/cookbooks/ocr.ipynb)
-- [Qwen3-VL Document Parsing Cookbook](https://github.com/QwenLM/Qwen3-VL/blob/main/cookbooks/document_parsing.ipynb)
+- no private sample outputs
+- no API keys
+- no local absolute paths in the committed direct bench docs
