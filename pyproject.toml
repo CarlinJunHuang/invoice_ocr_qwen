@@ -11,13 +11,16 @@ requires-python = ">=3.11,<3.13"
 dependencies = [
   "easyocr>=1.7.2",
   "json-repair>=0.58.4",
+  "numpy>=1.26.4",
   "opencv-python-headless>=4.10.0.84",
   "pillow>=10.4.0",
+  "pypdfium2>=4.30.0",
   "psutil>=6.0.0",
   "pydantic>=2.8.2,<3.0.0",
   "PyYAML>=6.0.2",
   "qwen-vl-utils>=0.0.8",
   "rapidfuzz>=3.9.6",
+  "requests>=2.32.3",
   "transformers>=4.57.0",
   "accelerate>=0.34.2"
 ]
@@ -32,3 +35,6 @@ quant = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"invoice_ocr_qwen.direct_bench" = ["prompts/*.txt"]
