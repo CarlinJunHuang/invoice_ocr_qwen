@@ -1,0 +1,119 @@
+project:
+  name: invoice_ocr_glm_paddle_eval
+
+paths:
+  runtime_root: ./.local_runtime
+  hf_home: ./.local_runtime/hf-cache
+  torch_home: ./.local_runtime/torch-cache
+  output_root: ./outputs
+
+ocr:
+  languages:
+    - en
+  gpu: true
+  min_confidence: 0.20
+
+overlay:
+  enabled: true
+  line_width: 3
+  font_size: 18
+
+grounding:
+  fuzzy_threshold: 82
+
+modes:
+  glm_ocr:
+    kind: glm_ocr
+    model_id: zai-org/GLM-OCR
+    max_new_tokens: 1400
+    temperature: 0.0
+
+  glm_ocr_qwen3_5_2b:
+    kind: glm_ocr
+    model_id: zai-org/GLM-OCR
+    max_new_tokens: 1400
+    temperature: 0.0
+    parser_model_id: Qwen/Qwen3.5-2B
+    parser_precision: bf16
+    parser_device: cuda
+    parser_max_new_tokens: 900
+    parser_temperature: 0.0
+    parser_chat_template_kwargs:
+      enable_thinking: false
+
+  glm_ocr_qwen3_5_4b:
+    kind: glm_ocr
+    model_id: zai-org/GLM-OCR
+    max_new_tokens: 1400
+    temperature: 0.0
+    parser_model_id: Qwen/Qwen3.5-4B
+    parser_precision: bf16
+    parser_device: cuda
+    parser_max_new_tokens: 900
+    parser_temperature: 0.0
+    parser_chat_template_kwargs:
+      enable_thinking: false
+
+  paddleocr_vl_v1:
+    kind: paddleocr_vl_v1
+    model_id: merve/PaddleOCR-VL-hf
+    max_new_tokens: 1400
+    temperature: 0.0
+
+  paddleocr_vl_v1_qwen3_5_2b:
+    kind: paddleocr_vl_v1
+    model_id: merve/PaddleOCR-VL-hf
+    max_new_tokens: 1400
+    temperature: 0.0
+    parser_model_id: Qwen/Qwen3.5-2B
+    parser_precision: bf16
+    parser_device: cuda
+    parser_max_new_tokens: 900
+    parser_temperature: 0.0
+    parser_chat_template_kwargs:
+      enable_thinking: false
+
+  paddleocr_vl_v1_qwen3_5_4b:
+    kind: paddleocr_vl_v1
+    model_id: merve/PaddleOCR-VL-hf
+    max_new_tokens: 1400
+    temperature: 0.0
+    parser_model_id: Qwen/Qwen3.5-4B
+    parser_precision: bf16
+    parser_device: cuda
+    parser_max_new_tokens: 900
+    parser_temperature: 0.0
+    parser_chat_template_kwargs:
+      enable_thinking: false
+
+  paddleocr_vl_1_5:
+    kind: paddleocr_vl_v1_5
+    model_id: merve/PaddleOCR-VL-1.5-hf
+    max_new_tokens: 1400
+    temperature: 0.0
+
+  paddleocr_vl_1_5_qwen3_5_2b:
+    kind: paddleocr_vl_v1_5
+    model_id: merve/PaddleOCR-VL-1.5-hf
+    max_new_tokens: 1400
+    temperature: 0.0
+    parser_model_id: Qwen/Qwen3.5-2B
+    parser_precision: bf16
+    parser_device: cuda
+    parser_max_new_tokens: 900
+    parser_temperature: 0.0
+    parser_chat_template_kwargs:
+      enable_thinking: false
+
+  paddleocr_vl_1_5_qwen3_5_4b:
+    kind: paddleocr_vl_v1_5
+    model_id: merve/PaddleOCR-VL-1.5-hf
+    max_new_tokens: 1400
+    temperature: 0.0
+    parser_model_id: Qwen/Qwen3.5-4B
+    parser_precision: bf16
+    parser_device: cuda
+    parser_max_new_tokens: 900
+    parser_temperature: 0.0
+    parser_chat_template_kwargs:
+      enable_thinking: false

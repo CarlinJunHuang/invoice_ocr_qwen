@@ -1,0 +1,8 @@
+.local_runtime/
+outputs/
+private_inputs/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+src/*.egg-info/

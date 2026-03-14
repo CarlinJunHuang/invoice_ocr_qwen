@@ -13,3 +13,12 @@ input/invoices/*
 !input/invoices/.gitkeep
 
 *.log
+
+invoice_ocr_glm_paddle_eval/.local_runtime/
+invoice_ocr_glm_paddle_eval/outputs/
+invoice_ocr_glm_paddle_eval/private_inputs/
+invoice_ocr_glm_paddle_eval/__pycache__/
+invoice_ocr_glm_paddle_eval/*.pyc
+invoice_ocr_glm_paddle_eval/*.pyo
+invoice_ocr_glm_paddle_eval/*.pyd
+invoice_ocr_glm_paddle_eval/src/*.egg-info/

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "invoice-ocr-glm-paddle-eval"
+version = "0.1.0"
+description = "Simple local evaluation for GLM-OCR and PaddleOCR-VL invoice extraction"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "accelerate>=1.0.1",
+  "easyocr>=1.7.2",
+  "einops>=0.8.1",
+  "json-repair>=0.58.4",
+  "opencv-python-headless>=4.10.0.84",
+  "pillow>=10.4.0",
+  "pydantic>=2.8.2,<3.0.0",
+  "PyYAML>=6.0.2",
+  "rapidfuzz>=3.9.6",
+  "sentencepiece>=0.2.0",
+  "transformers>=5.0.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
