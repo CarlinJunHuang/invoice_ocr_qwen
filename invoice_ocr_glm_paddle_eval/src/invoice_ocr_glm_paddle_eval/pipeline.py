@@ -13,6 +13,7 @@ from invoice_ocr_glm_paddle_eval.models import run_model_extract
 from invoice_ocr_glm_paddle_eval.ocr import run_ocr
 from invoice_ocr_glm_paddle_eval.overlay import render_overlay_images
 from invoice_ocr_glm_paddle_eval.qwen_parser import run_qwen_parse
+from invoice_ocr_glm_paddle_eval.reporting import build_compare_report
 from invoice_ocr_glm_paddle_eval.schema import EvidenceItem, ExtractedField, InvoiceEnvelope, build_empty_envelope, normalize_envelope
 
 
@@ -162,6 +163,8 @@ def run_compare(
         "images": [str(Path(path).resolve()) for path in image_paths],
         "results": results,
     }
+    report_artifacts = build_compare_report(run_name=run_name, results=results, report_root=config.report_root)
+    summary["report_artifacts"] = report_artifacts
     output_dir = config.output_root / run_name
     output_dir.mkdir(parents=True, exist_ok=True)
     _write_json(output_dir / "benchmark_summary.json", summary)

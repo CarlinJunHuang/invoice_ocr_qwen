@@ -2,7 +2,7 @@ param(
   [Parameter(Mandatory = $true)]
   [string[]]$InputImages,
 
-  [string[]]$Modes = @("glm_ocr", "paddleocr_vl_v1", "paddleocr_vl_1_5"),
+  [string[]]$Modes = @("glm_ocr", "paddleocr_vl_v1", "paddleocr_vl_1_5", "firered_ocr"),
 
   [string]$ConfigPath = ""
 )

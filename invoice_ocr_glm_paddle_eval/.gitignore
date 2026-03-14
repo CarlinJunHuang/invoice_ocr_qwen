@@ -1,5 +1,6 @@
 .local_runtime/
 outputs/
+reports/
 private_inputs/
 __pycache__/
 *.pyc

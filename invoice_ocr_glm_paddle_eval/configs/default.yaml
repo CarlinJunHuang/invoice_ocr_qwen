@@ -6,6 +6,7 @@ paths:
   hf_home: ./.local_runtime/hf-cache
   torch_home: ./.local_runtime/torch-cache
   output_root: ./outputs
+  report_root: ./reports
 
 ocr:
   languages:
@@ -27,6 +28,38 @@ modes:
     model_id: zai-org/GLM-OCR
     max_new_tokens: 1400
     temperature: 0.0
+
+  firered_ocr:
+    kind: firered_ocr
+    model_id: FireRedTeam/FireRed-OCR
+    max_new_tokens: 2200
+    temperature: 0.0
+
+  firered_ocr_qwen3_5_2b:
+    kind: firered_ocr
+    model_id: FireRedTeam/FireRed-OCR
+    max_new_tokens: 2200
+    temperature: 0.0
+    parser_model_id: Qwen/Qwen3.5-2B
+    parser_precision: bf16
+    parser_device: cuda
+    parser_max_new_tokens: 900
+    parser_temperature: 0.0
+    parser_chat_template_kwargs:
+      enable_thinking: false
+
+  firered_ocr_qwen3_5_4b:
+    kind: firered_ocr
+    model_id: FireRedTeam/FireRed-OCR
+    max_new_tokens: 2200
+    temperature: 0.0
+    parser_model_id: Qwen/Qwen3.5-4B
+    parser_precision: bf16
+    parser_device: cuda
+    parser_max_new_tokens: 900
+    parser_temperature: 0.0
+    parser_chat_template_kwargs:
+      enable_thinking: false
 
   glm_ocr_qwen3_5_2b:
     kind: glm_ocr

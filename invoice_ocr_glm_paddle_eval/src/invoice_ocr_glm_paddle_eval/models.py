@@ -18,6 +18,13 @@ MODEL_TEXT_PROMPTS = {
     "glm_ocr": "Text Recognition:",
     "paddleocr_vl_v1": "OCR:",
     "paddleocr_vl_v1_5": "OCR:",
+    "firered_ocr": """You are an AI assistant specialized in converting document images to Markdown format.
+Accurately recognize all text content without guessing or inferring.
+Maintain the original document structure, including headings, paragraphs, and lists.
+Convert mathematical formulas to LaTeX when present.
+Convert tables to HTML wrapped in <table> and </table>.
+Ignore image descriptions.
+Return Markdown only, with no explanations or extra comments.""",
 }
 
 
@@ -37,6 +44,10 @@ def _load_processor_and_model(mode: ModeConfig, config: AppConfig):
     import transformers.modeling_rope_utils as rope_utils
     import transformers.utils.generic as generic_utils
     from transformers import AutoModelForImageTextToText, AutoProcessor, GlmOcrForConditionalGeneration
+    try:
+        from transformers import Qwen3VLForConditionalGeneration
+    except ImportError:
+        Qwen3VLForConditionalGeneration = None
 
     if not hasattr(cache_utils, "SlidingWindowCache"):
         class SlidingWindowCache(cache_utils.Cache):
@@ -87,6 +98,11 @@ def _load_processor_and_model(mode: ModeConfig, config: AppConfig):
         model = GlmOcrForConditionalGeneration.from_pretrained(model_id, **model_kwargs)
     elif kind in {"paddleocr_vl_v1", "paddleocr_vl_v1_5"}:
         model = AutoModelForImageTextToText.from_pretrained(model_id, **model_kwargs)
+    elif kind == "firered_ocr":
+        if Qwen3VLForConditionalGeneration is not None:
+            model = Qwen3VLForConditionalGeneration.from_pretrained(model_id, **model_kwargs)
+        else:
+            model = AutoModelForImageTextToText.from_pretrained(model_id, **model_kwargs)
     else:
         raise ValueError(f"Unsupported mode kind: {kind}")
 

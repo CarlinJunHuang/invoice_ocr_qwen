@@ -22,6 +22,7 @@ class AppConfig:
     hf_home: Path
     torch_home: Path
     output_root: Path
+    report_root: Path
     ocr_languages: list[str]
     ocr_gpu: bool
     ocr_min_confidence: float
@@ -72,6 +73,7 @@ def load_config(config_path: str | Path) -> AppConfig:
         hf_home=_resolve_path(project_root, paths.get("hf_home", "./.local_runtime/hf-cache")),
         torch_home=_resolve_path(project_root, paths.get("torch_home", "./.local_runtime/torch-cache")),
         output_root=_resolve_path(project_root, paths.get("output_root", "./outputs")),
+        report_root=_resolve_path(project_root, paths.get("report_root", "./reports")),
         ocr_languages=list(ocr.get("languages", ["en"])),
         ocr_gpu=bool(ocr.get("gpu", True)),
         ocr_min_confidence=float(ocr.get("min_confidence", 0.20)),
@@ -82,6 +84,6 @@ def load_config(config_path: str | Path) -> AppConfig:
         modes=modes,
     )
 
-    for path in (config.runtime_root, config.hf_home, config.torch_home, config.output_root):
+    for path in (config.runtime_root, config.hf_home, config.torch_home, config.output_root, config.report_root):
         path.mkdir(parents=True, exist_ok=True)
     return config
