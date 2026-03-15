@@ -10,14 +10,18 @@ readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
   "accelerate>=1.0.1",
+  "addict>=2.4.0",
   "easyocr>=1.7.2",
+  "easydict>=1.13",
   "einops>=0.8.1",
   "json-repair>=0.58.4",
+  "matplotlib>=3.9.2",
   "opencv-python-headless>=4.10.0.84",
   "pillow>=10.4.0",
   "pydantic>=2.8.2,<3.0.0",
   "PyYAML>=6.0.2",
   "rapidfuzz>=3.9.6",
+  "requests>=2.32.3",
   "sentencepiece>=0.2.0",
   "transformers>=5.0.0"
 ]

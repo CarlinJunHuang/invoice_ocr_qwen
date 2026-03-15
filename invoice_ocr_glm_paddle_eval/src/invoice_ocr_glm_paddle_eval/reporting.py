@@ -18,6 +18,13 @@ _CARD_BORDER = "#D8D0BF"
 _TEXT_COLOR = "#1E1E1E"
 
 
+def _looks_like_markdown(text: str) -> bool:
+    if not text.strip():
+        return False
+    markers = ("# ", "## ", "- ", "* ", "|", "<table", "```", "**")
+    return any(marker in text for marker in markers)
+
+
 def _read_json(path: str | None) -> dict[str, Any] | list[Any] | None:
     if not path:
         return None
@@ -99,7 +106,10 @@ def _collect_result_detail(result: dict[str, Any]) -> dict[str, Any]:
         "run_name": result.get("run_name"),
         "request_id": result.get("request_id"),
         "overlay_images": artifacts.get("overlay_images") or [],
+        "native_overlay_images": artifacts.get("native_overlay_images") or [],
+        "native_boxes_path": artifacts.get("native_boxes"),
         "raw_output": raw_output,
+        "raw_output_format": "markdown" if _looks_like_markdown(raw_output) else "text",
         "parser_output": parser_output,
         "envelope": envelope_payload,
         "grounded_box_count": len(grounded_boxes) if isinstance(grounded_boxes, list) else 0,
@@ -437,6 +447,210 @@ def _build_montage(image_path: str, items: list[dict[str, Any]], report_dir: Pat
     return str(montage_path)
 
 
+def _render_raw_markdown(details: list[dict[str, Any]], report_dir: Path) -> str:
+    parts = [
+        "# OCR Raw Output Report",
+        "",
+        "Only raw model output is shown below.",
+        "Native bbox is shown only when the model returns native bbox data directly.",
+        "No parser-based overlay or evidence grounding is used in this report.",
+        "",
+        "| Image | Mode | Raw Format | Total(s) | Main Tokens | Native BBox | Native Overlay |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for detail in details:
+        native_overlay = bool(detail["native_overlay_images"])
+        native_bbox = "yes" if detail["native_boxes_path"] else "no"
+        parts.append(
+            "| {image} | {mode} | {fmt} | {elapsed} | {tokens} | {bbox} | {overlay} |".format(
+                image=Path(str(detail["image"])).name,
+                mode=detail["mode"] or "",
+                fmt=detail["raw_output_format"],
+                elapsed=detail["total_elapsed_seconds"] or "",
+                tokens=detail["main_model"].get("total_tokens", ""),
+                bbox=native_bbox,
+                overlay="yes" if native_overlay else "no",
+            )
+        )
+    parts.append("")
+
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for detail in details:
+        grouped[str(detail["image"])].append(detail)
+
+    for image_path, items in grouped.items():
+        parts.extend([f"## Image: {Path(image_path).name}", ""])
+        for detail in items:
+            parts.extend(
+                [
+                    f"### Mode: {detail['mode']}",
+                    "",
+                    f"- Raw output format: `{detail['raw_output_format']}`",
+                    f"- Total elapsed: `{detail['total_elapsed_seconds']}` seconds",
+                    f"- Main model tokens: `{detail['main_model'].get('input_tokens', '')}` in / `{detail['main_model'].get('output_tokens', '')}` out",
+                    f"- Native bbox available: `{'yes' if detail['native_boxes_path'] else 'no'}`",
+                    "",
+                ]
+            )
+            native_overlay_images = detail["native_overlay_images"] or []
+            if native_overlay_images:
+                native_overlay_rel = _safe_relpath(native_overlay_images[0], report_dir)
+                if native_overlay_rel:
+                    parts.extend(
+                        [
+                            f"![{detail['mode']} native overlay]({native_overlay_rel})",
+                            "",
+                        ]
+                    )
+            else:
+                parts.extend(
+                    [
+                        "_No native bbox overlay produced by this model path._",
+                        "",
+                    ]
+                )
+
+            fence = "markdown" if detail["raw_output_format"] == "markdown" else "text"
+            parts.extend(
+                [
+                    "#### Raw model output",
+                    "",
+                    f"```{fence}",
+                    detail["raw_output"] or "",
+                    "```",
+                    "",
+                ]
+            )
+
+    return "\n".join(parts).strip() + "\n"
+
+
+def _render_raw_html(details: list[dict[str, Any]], report_dir: Path) -> str:
+    rows: list[str] = []
+    sections: list[str] = []
+
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for detail in details:
+        grouped[str(detail["image"])].append(detail)
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(Path(str(detail['image'])).name)}</td>"
+            f"<td>{html.escape(str(detail['mode'] or ''))}</td>"
+            f"<td>{html.escape(detail['raw_output_format'])}</td>"
+            f"<td>{html.escape(str(detail['total_elapsed_seconds'] or ''))}</td>"
+            f"<td>{html.escape(str(detail['main_model'].get('total_tokens', '')))}</td>"
+            f"<td>{'yes' if detail['native_boxes_path'] else 'no'}</td>"
+            f"<td>{'yes' if detail['native_overlay_images'] else 'no'}</td>"
+            "</tr>"
+        )
+
+    for image_path, items in grouped.items():
+        cards: list[str] = []
+        for detail in items:
+            native_overlay_html = ""
+            native_overlay_images = detail["native_overlay_images"] or []
+            if native_overlay_images:
+                rel = _safe_relpath(native_overlay_images[0], report_dir)
+                if rel:
+                    native_overlay_html = f'<img class="overlay" src="{html.escape(rel)}" alt="{html.escape(detail["mode"])} native overlay" />'
+            else:
+                native_overlay_html = '<p><em>No native bbox overlay produced by this model path.</em></p>'
+
+            cards.append(
+                '<section class="card">'
+                f'<h3>{html.escape(str(detail["mode"]))}</h3>'
+                f'<p><strong>Raw output format:</strong> {html.escape(detail["raw_output_format"])}<br>'
+                f'<strong>Total elapsed:</strong> {html.escape(str(detail["total_elapsed_seconds"] or ""))} seconds<br>'
+                f'<strong>Main tokens:</strong> {html.escape(str(detail["main_model"].get("input_tokens", "")))} in / {html.escape(str(detail["main_model"].get("output_tokens", "")))} out<br>'
+                f'<strong>Native bbox available:</strong> {"yes" if detail["native_boxes_path"] else "no"}</p>'
+                f'{native_overlay_html}'
+                '<h4>Raw model output</h4>'
+                f'<pre>{html.escape(detail["raw_output"] or "")}</pre>'
+                '</section>'
+            )
+
+        sections.append(
+            '<section class="image-group">'
+            f'<h2>{html.escape(Path(image_path).name)}</h2>'
+            + "".join(cards)
+            + '</section>'
+        )
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OCR Raw Output Report</title>
+  <style>
+    body {{
+      background: {_BG_COLOR};
+      color: {_TEXT_COLOR};
+      font-family: Segoe UI, Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+    }}
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+      background: #fff;
+    }}
+    th, td {{
+      border: 1px solid {_CARD_BORDER};
+      padding: 8px;
+      vertical-align: top;
+      text-align: left;
+    }}
+    th {{
+      background: {_HEADER_BG};
+      color: {_HEADER_FG};
+    }}
+    .card {{
+      background: #fff;
+      border: 1px solid {_CARD_BORDER};
+      padding: 16px;
+      margin-bottom: 20px;
+    }}
+    pre {{
+      background: #f4f1e8;
+      padding: 12px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }}
+    .overlay {{
+      max-width: 100%;
+      display: block;
+      margin: 12px 0;
+      border: 1px solid {_CARD_BORDER};
+    }}
+  </style>
+</head>
+<body>
+  <h1>OCR Raw Output Report</h1>
+  <p>Only raw model output is shown below. No parser-based overlay or evidence grounding is used in this report.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Image</th>
+        <th>Mode</th>
+        <th>Raw Format</th>
+        <th>Total(s)</th>
+        <th>Main Tokens</th>
+        <th>Native BBox</th>
+        <th>Native Overlay</th>
+      </tr>
+    </thead>
+    <tbody>
+      {"".join(rows)}
+    </tbody>
+  </table>
+  {"".join(sections)}
+</body>
+</html>
+"""
+
+
 def build_compare_report(run_name: str, results: list[dict[str, Any]], report_root: Path) -> dict[str, Any]:
     report_dir = report_root / run_name
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -454,11 +668,17 @@ def build_compare_report(run_name: str, results: list[dict[str, Any]], report_ro
 
     markdown = _render_markdown(details, report_dir, montage_paths)
     html_report = _render_html(details, report_dir, montage_paths)
+    raw_markdown = _render_raw_markdown(details, report_dir)
+    raw_html = _render_raw_html(details, report_dir)
 
     markdown_path = report_dir / "report.md"
     html_path = report_dir / "report.html"
+    raw_markdown_path = report_dir / "raw_report.md"
+    raw_html_path = report_dir / "raw_report.html"
     markdown_path.write_text(markdown, encoding="utf-8")
     html_path.write_text(html_report, encoding="utf-8")
+    raw_markdown_path.write_text(raw_markdown, encoding="utf-8")
+    raw_html_path.write_text(raw_html, encoding="utf-8")
 
     summary_path = report_dir / "report_summary.json"
     summary_path.write_text(
@@ -468,6 +688,8 @@ def build_compare_report(run_name: str, results: list[dict[str, Any]], report_ro
                 "result_count": len(details),
                 "report_markdown": str(markdown_path),
                 "report_html": str(html_path),
+                "raw_report_markdown": str(raw_markdown_path),
+                "raw_report_html": str(raw_html_path),
                 "montages": montage_paths,
             },
             indent=2,
@@ -479,6 +701,8 @@ def build_compare_report(run_name: str, results: list[dict[str, Any]], report_ro
     return {
         "report_markdown": str(markdown_path),
         "report_html": str(html_path),
+        "raw_report_markdown": str(raw_markdown_path),
+        "raw_report_html": str(raw_html_path),
         "report_summary": str(summary_path),
         "montages": montage_paths,
     }

@@ -1,0 +1,75 @@
+Metadata-Version: 2.4
+Name: dots-ocr-tryout
+Version: 0.1.0
+Summary: Minimal raw-output tryout for dots.ocr 1.5
+Requires-Python: <3.13,>=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: accelerate>=1.0.1
+Requires-Dist: huggingface_hub>=0.34.0
+Requires-Dist: pillow>=10.4.0
+Requires-Dist: PyYAML>=6.0.2
+Requires-Dist: qwen-vl-utils>=0.0.11
+Requires-Dist: torch>=2.7.0
+Requires-Dist: torchvision>=0.22.0
+Requires-Dist: transformers>=4.56.0
+
+# dots.ocr 1.5 Tryout
+
+这个目录只做一件事：验证 `dots.ocr 1.5` 是否能在本机输出可读的原始结果。
+
+当前策略：
+
+1. 先试 Hugging Face 本地推理
+2. 如果 HF 路径失败，再尝试 `vLLM + docker`
+3. 只保留原始输出，不做 parser，不做字段抽取，不做 bbox overlay
+
+## 目录
+
+- `.local_runtime/`
+  - 当前 tryout 的虚拟环境、缓存、下载权重
+- `outputs/`
+  - 每次运行的原始输出和状态文件
+- `scripts/`
+  - 启动脚本
+- `run_hf.py`
+  - HF 本地推理脚本
+- `run_vllm_client.py`
+  - 调用本地 vLLM OpenAI 接口的最小客户端
+
+## HF 运行
+
+```powershell
+.\scripts\bootstrap_hf.ps1
+.\scripts\run_hf.ps1 -InputImage ..\invoice_ocr_glm_paddle_eval\private_inputs\invoices\1a.png
+```
+
+输出会落在：
+
+```text
+outputs/hf/<run_name>/
+├── raw_output.txt
+├── status.json
+├── metadata.json
+└── error.txt        # 仅失败时存在
+```
+
+## vLLM + docker
+
+```powershell
+.\scripts\run_vllm_docker.ps1 -InputImage ..\invoice_ocr_glm_paddle_eval\private_inputs\invoices\1a.png
+```
+
+如果本机没有 `docker`，脚本会直接记录失败原因。
+
+## 当前使用的公开来源
+
+- HF mirror: `kristaller486/dots.ocr-1.5`
+- 参考文档:
+  - 官方仓库的 HF inference 示例
+  - 官方仓库对 `vLLM` 的推荐部署说明
+
+## 说明
+
+- 权重本地目录会使用 `DotsOCR_1_5` 这种不带点号的名字，避免官方 README 里提到的路径问题
+- 这个 tryout 不会自动并入主 OCR 实验
+

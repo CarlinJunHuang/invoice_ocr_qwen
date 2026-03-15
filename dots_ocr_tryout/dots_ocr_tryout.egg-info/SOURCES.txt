@@ -1,0 +1,7 @@
+README.md
+pyproject.toml
+dots_ocr_tryout.egg-info/PKG-INFO
+dots_ocr_tryout.egg-info/SOURCES.txt
+dots_ocr_tryout.egg-info/dependency_links.txt
+dots_ocr_tryout.egg-info/requires.txt
+dots_ocr_tryout.egg-info/top_level.txt

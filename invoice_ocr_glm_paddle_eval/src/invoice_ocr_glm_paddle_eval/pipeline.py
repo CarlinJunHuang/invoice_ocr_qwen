@@ -89,7 +89,7 @@ def run_extract(
     parser_metrics = None
     envelope: InvoiceEnvelope
     try:
-        raw_output, parsed_output, model_metrics = run_model_extract(image_path, mode, config)
+        raw_output, parsed_output, model_metrics, model_artifacts = run_model_extract(image_path, mode, config, output_dir=output_dir)
         if mode.options.get("parser_model_id"):
             parser_output, parsed_output, parser_metrics = run_qwen_parse(raw_output, mode, config)
         envelope = normalize_envelope(parsed_output, request_id=request_id)
@@ -98,6 +98,7 @@ def run_extract(
         envelope = build_empty_envelope(request_id=request_id)
         envelope.errors.append(str(exc))
         raw_output = str(exc)
+        model_artifacts = {"native_boxes": None, "native_overlay_images": []}
 
     grounded = ground_envelope_evidence(envelope, ocr_pages, config.fuzzy_threshold)
     overlay_paths = []
@@ -135,6 +136,8 @@ def run_extract(
             "ocr_pages": str(output_dir / "ocr_pages.json"),
             "invoice_fields": str(output_dir / "invoice_fields.json"),
             "grounded_boxes": str(output_dir / "grounded_boxes.json"),
+            "native_boxes": model_artifacts.get("native_boxes"),
+            "native_overlay_images": model_artifacts.get("native_overlay_images") or [],
             "overlay_images": overlay_paths,
             "parsed_model_output": str(output_dir / "parsed_model_output.json") if parsed_output is not None else None,
             "raw_model_output": str(output_dir / "raw_model_output.txt") if raw_output is not None else None,

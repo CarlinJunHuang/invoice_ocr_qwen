@@ -29,6 +29,16 @@ modes:
     max_new_tokens: 1400
     temperature: 0.0
 
+  deepseek_ocr:
+    kind: deepseek_ocr
+    model_id: deepseek-ai/DeepSeek-OCR
+    prompt: "<image>\nFree OCR."
+    base_size: 1024
+    image_size: 640
+    crop_mode: true
+    test_compress: true
+    save_results: true
+
   firered_ocr:
     kind: firered_ocr
     model_id: FireRedTeam/FireRed-OCR

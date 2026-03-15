@@ -13,11 +13,13 @@ from invoice_ocr_glm_paddle_eval.text_parser import parse_invoice_like_text
 
 _MODEL_CACHE: dict[tuple[str, str], Any] = {}
 _PROCESSOR_CACHE: dict[str, Any] = {}
+_TOKENIZER_CACHE: dict[str, Any] = {}
 
 MODEL_TEXT_PROMPTS = {
     "glm_ocr": "Text Recognition:",
     "paddleocr_vl_v1": "OCR:",
     "paddleocr_vl_v1_5": "OCR:",
+    "deepseek_ocr": "<image>\nFree OCR.",
     "firered_ocr": """You are an AI assistant specialized in converting document images to Markdown format.
 Accurately recognize all text content without guessing or inferring.
 Maintain the original document structure, including headings, paragraphs, and lists.
@@ -30,6 +32,98 @@ Return Markdown only, with no explanations or extra comments.""",
 
 def _model_device(model: Any):
     return next(model.parameters()).device
+
+
+def _coerce_text_result(payload: Any) -> str:
+    if payload is None:
+        return ""
+    if isinstance(payload, str):
+        return payload
+    if isinstance(payload, dict):
+        for key in ("text", "markdown", "content", "output", "result", "response"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+        return json.dumps(payload, indent=2, ensure_ascii=False)
+    if isinstance(payload, list):
+        parts = [_coerce_text_result(item) for item in payload]
+        return "\n".join(part for part in parts if part.strip())
+    return str(payload)
+
+
+def _read_text_file(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="ignore")
+
+
+def _first_matching_path(root: Path, patterns: tuple[str, ...]) -> Path | None:
+    matches: list[Path] = []
+    for pattern in patterns:
+        matches.extend(root.rglob(pattern))
+    if not matches:
+        return None
+    return sorted(matches)[0]
+
+
+def _find_native_boxes_path(root: Path) -> str | None:
+    for candidate in sorted(root.rglob("*.json")):
+        try:
+            text = candidate.read_text(encoding="utf-8", errors="ignore").lower()
+        except OSError:
+            continue
+        if any(token in text for token in ('"bbox"', '"bboxes"', '"boxes"', '"points"', '"polygon"')):
+            return str(candidate)
+    return None
+
+
+def _find_native_overlay_images(root: Path) -> list[str]:
+    images = [
+        path
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
+    ]
+    return [str(path) for path in images]
+
+
+def _load_deepseek_tokenizer_and_model(mode: ModeConfig, config: AppConfig):
+    model_id = str(mode.options["model_id"])
+    cache_key = (model_id, mode.kind)
+    if cache_key in _MODEL_CACHE and model_id in _TOKENIZER_CACHE:
+        return _TOKENIZER_CACHE[model_id], _MODEL_CACHE[cache_key]
+
+    import torch
+    import transformers.cache_utils as cache_utils
+    import transformers.models.llama.modeling_llama as llama_modeling
+    import transformers.utils.import_utils as import_utils
+    from transformers import AutoModel, AutoTokenizer
+
+    if not hasattr(llama_modeling, "LlamaFlashAttention2"):
+        llama_modeling.LlamaFlashAttention2 = llama_modeling.LlamaAttention
+    if not hasattr(import_utils, "is_torch_fx_available"):
+        import_utils.is_torch_fx_available = lambda: False
+    if not hasattr(cache_utils.DynamicCache, "seen_tokens"):
+        cache_utils.DynamicCache.seen_tokens = property(lambda self: getattr(self, "_seen_tokens", 0))
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_id,
+        cache_dir=str(config.hf_home),
+        trust_remote_code=True,
+    )
+    model = AutoModel.from_pretrained(
+        model_id,
+        cache_dir=str(config.hf_home),
+        trust_remote_code=True,
+        low_cpu_mem_usage=True,
+        use_safetensors=True,
+        attn_implementation="eager",
+    )
+    if torch.cuda.is_available():
+        model = model.eval().cuda().to(torch.bfloat16)
+    else:
+        model = model.eval().to(torch.float32)
+
+    _TOKENIZER_CACHE[model_id] = tokenizer
+    _MODEL_CACHE[cache_key] = model
+    return tokenizer, model
 
 
 def _load_processor_and_model(mode: ModeConfig, config: AppConfig):
@@ -98,6 +192,8 @@ def _load_processor_and_model(mode: ModeConfig, config: AppConfig):
         model = GlmOcrForConditionalGeneration.from_pretrained(model_id, **model_kwargs)
     elif kind in {"paddleocr_vl_v1", "paddleocr_vl_v1_5"}:
         model = AutoModelForImageTextToText.from_pretrained(model_id, **model_kwargs)
+    elif kind == "deepseek_ocr":
+        raise ValueError("DeepSeek-OCR uses a dedicated inference path.")
     elif kind == "firered_ocr":
         if Qwen3VLForConditionalGeneration is not None:
             model = Qwen3VLForConditionalGeneration.from_pretrained(model_id, **model_kwargs)
@@ -138,7 +234,68 @@ def _prepare_inputs(processor: Any, image_path: Path, mode: ModeConfig):
         return processor.apply_chat_template(messages, **kwargs)
 
 
-def run_model_extract(image_path: Path, mode: ModeConfig, config: AppConfig) -> tuple[str, dict[str, Any], dict[str, object]]:
+def _run_deepseek_extract(
+    image_path: Path,
+    mode: ModeConfig,
+    config: AppConfig,
+    output_dir: Path,
+) -> tuple[str, dict[str, Any], dict[str, object], dict[str, object]]:
+    tokenizer, model = _load_deepseek_tokenizer_and_model(mode, config)
+    native_dir = output_dir / "native_deepseek"
+    native_dir.mkdir(parents=True, exist_ok=True)
+    prompt = str(mode.options.get("prompt", MODEL_TEXT_PROMPTS["deepseek_ocr"]))
+    infer_kwargs = {
+        "tokenizer": tokenizer,
+        "prompt": prompt,
+        "image_file": str(image_path),
+        "output_path": str(native_dir),
+        "base_size": int(mode.options.get("base_size", 1024)),
+        "image_size": int(mode.options.get("image_size", 640)),
+        "crop_mode": bool(mode.options.get("crop_mode", True)),
+        "test_compress": bool(mode.options.get("test_compress", True)),
+        "save_results": bool(mode.options.get("save_results", True)),
+    }
+
+    started_at = perf_counter()
+    result = model.infer(**infer_kwargs)
+    elapsed_seconds = round(perf_counter() - started_at, 3)
+
+    raw_output = _coerce_text_result(result)
+    if not raw_output.strip():
+        preferred_text = _first_matching_path(native_dir, ("*.md", "*.markdown", "*.mmd", "*.txt", "*.json"))
+        if preferred_text is not None:
+            raw_output = _read_text_file(preferred_text)
+
+    input_tokens = int(tokenizer(prompt, return_tensors="pt")["input_ids"].shape[-1])
+    output_tokens = int(tokenizer(raw_output or "", return_tensors="pt")["input_ids"].shape[-1]) if raw_output else 0
+    metrics = {
+        "stage": "ocr_model",
+        "model_id": str(mode.options["model_id"]),
+        "kind": mode.kind,
+        "elapsed_seconds": elapsed_seconds,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": input_tokens + output_tokens,
+    }
+    artifacts = {
+        "native_boxes": _find_native_boxes_path(native_dir),
+        "native_overlay_images": _find_native_overlay_images(native_dir),
+        "native_output_dir": str(native_dir),
+    }
+    return raw_output, parse_invoice_like_text(raw_output), metrics, artifacts
+
+
+def run_model_extract(
+    image_path: Path,
+    mode: ModeConfig,
+    config: AppConfig,
+    output_dir: Path | None = None,
+) -> tuple[str, dict[str, Any], dict[str, object], dict[str, object]]:
+    if mode.kind == "deepseek_ocr":
+        if output_dir is None:
+            raise ValueError("output_dir is required for DeepSeek-OCR so native artifacts can be preserved.")
+        return _run_deepseek_extract(image_path, mode, config, output_dir)
+
     processor, model = _load_processor_and_model(mode, config)
     model_inputs = _prepare_inputs(processor, image_path, mode)
     target_device = _model_device(model)
@@ -177,4 +334,4 @@ def run_model_extract(image_path: Path, mode: ModeConfig, config: AppConfig) -> 
         "output_tokens": output_tokens,
         "total_tokens": prompt_length + output_tokens,
     }
-    return raw_output, parse_invoice_like_text(raw_output), metrics
+    return raw_output, parse_invoice_like_text(raw_output), metrics, {"native_boxes": None, "native_overlay_images": []}

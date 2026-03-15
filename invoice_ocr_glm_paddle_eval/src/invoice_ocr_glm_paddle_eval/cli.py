@@ -9,7 +9,7 @@ from invoice_ocr_glm_paddle_eval.pipeline import run_compare, run_extract
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Simple local evaluation for GLM-OCR, PaddleOCR-VL, and FireRed-OCR invoice extraction")
+    parser = argparse.ArgumentParser(description="Simple local evaluation for GLM-OCR, DeepSeek-OCR, PaddleOCR-VL, and FireRed-OCR invoice extraction")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     extract_parser = subparsers.add_parser("extract", help="Run one image with one mode")
